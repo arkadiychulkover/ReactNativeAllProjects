@@ -1,18 +1,17 @@
 import { StatusBar } from "expo-status-bar";
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import CategoryScreen from "./src/screens/CategoryScreen";
+import AdaptivScreen from "./src/screens/AdaptivScreen";
+// import CategoryScreen from "./src/screens/CategoryScreen";
 // import HomeScreen from "./src/screens/HomeScreen";
 // import LikedScreen from "./src/screens/LikedScreen";
 // import { useState } from "react";
 
 export default function App() {
-  // const [currentScreen, setCurrentScreen] = useState<"home" | "liked">("home");
-
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.container}>
-        <CategoryScreen />
+      <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
+        <AdaptivScreen />
         <StatusBar style="auto" />
       </SafeAreaView>
     </SafeAreaProvider>
