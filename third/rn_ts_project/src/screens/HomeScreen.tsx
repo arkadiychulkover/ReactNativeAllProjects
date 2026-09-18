@@ -35,6 +35,30 @@ interface Product {
   categoryId?: string;
 }
 
+export type FilterType = "price_asc" | "price_desc" | "alphabetical" | null;
+
+const FILTER_OPTIONS: {
+  id: "price_asc" | "price_desc" | "alphabetical";
+  label: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+}[] = [
+    {
+      id: "price_asc",
+      label: "За зростанням ціни",
+      icon: "sort-numeric-ascending",
+    },
+    {
+      id: "price_desc",
+      label: "За спаданням ціни",
+      icon: "sort-numeric-descending",
+    },
+    {
+      id: "alphabetical",
+      label: "За алфавітом (А-Я)",
+      icon: "sort-alphabetical-ascending",
+    },
+  ];
+
 export default function HomeScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -42,6 +66,7 @@ export default function HomeScreen() {
     null,
   );
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [filterType, setFilterType] = useState<FilterType>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
@@ -77,10 +102,8 @@ export default function HomeScreen() {
     }
   };
 
-  // Фільтрація товарів: за категорією ТА за пошуковим запитом
   const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      // Перетворення на String усуває помилки розбіжності типів (String vs Number)
+    const result = products.filter((product) => {
       const matchesCategory = selectedCategoryId
         ? String(product.categoryId) === String(selectedCategoryId)
         : true;
@@ -91,7 +114,21 @@ export default function HomeScreen() {
 
       return matchesCategory && matchesSearch;
     });
-  }, [products, selectedCategoryId, searchQuery]);
+
+    if (filterType === "price_asc") {
+      return [...result].sort((a, b) => a.price - b.price);
+    }
+    if (filterType === "price_desc") {
+      return [...result].sort((a, b) => b.price - a.price);
+    }
+    if (filterType === "alphabetical") {
+      return [...result].sort((a, b) =>
+        a.title.localeCompare(b.title, undefined, { sensitivity: "base" }),
+      );
+    }
+
+    return result;
+  }, [products, selectedCategoryId, searchQuery, filterType]);
 
   const theme = {
     bg: isDarkMode ? "#121212" : "#FFFFFF",
@@ -142,7 +179,6 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.container}
       >
-        {/* Шапка */}
         <View style={styles.header}>
           <View>
             <Text style={[styles.greetingTitle, { color: theme.textPrimary }]}>
@@ -186,7 +222,6 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Пошук */}
         <View
           style={[styles.searchContainer, { backgroundColor: theme.inputBg }]}
         >
@@ -210,7 +245,6 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* Промо-банер */}
         <View style={[styles.banner, { backgroundColor: theme.bannerBg }]}>
           <View style={styles.bannerContent}>
             <View style={styles.discountTag}>
@@ -238,7 +272,6 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* Секція: Категорії */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
             Категорії
@@ -255,7 +288,6 @@ export default function HomeScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoriesList}
         >
-          {/* Кнопка "Всі" */}
           <TouchableOpacity
             style={styles.categoryCard}
             onPress={() => setSelectedCategoryId(null)}
@@ -293,7 +325,6 @@ export default function HomeScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* Список категорій */}
           {categories.map((item) => {
             const isSelected = String(selectedCategoryId) === String(item.id);
             return (
@@ -337,19 +368,74 @@ export default function HomeScreen() {
           })}
         </ScrollView>
 
-        {/* Секція: Товари */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
             {selectedCategoryId
               ? categories.find(
-                  (c) => String(c.id) === String(selectedCategoryId),
-                )?.name || "Товари"
+                (c) => String(c.id) === String(selectedCategoryId),
+              )?.name || "Товари"
               : "Популярні товари"}
           </Text>
           <Text style={[styles.countText, { color: theme.textSecondary }]}>
             ({filteredProducts.length})
           </Text>
         </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterList}
+        >
+          {FILTER_OPTIONS.map((option) => {
+            const isActive = filterType === option.id;
+            return (
+              <TouchableOpacity
+                key={option.id}
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor: isActive
+                      ? "#2E7D32"
+                      : isDarkMode
+                        ? "#2C2C2C"
+                        : "#F5F5F5",
+                    borderColor: isActive ? "#2E7D32" : theme.border,
+                  },
+                ]}
+                onPress={() =>
+                  setFilterType((prev) =>
+                    prev === option.id ? null : option.id,
+                  )
+                }
+              >
+                <MaterialCommunityIcons
+                  name={option.icon}
+                  size={16}
+                  color={isActive ? "#FFFFFF" : theme.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    {
+                      color: isActive ? "#FFFFFF" : theme.textPrimary,
+                      fontWeight: isActive ? "600" : "normal",
+                    },
+                  ]}
+                >
+                  {option.label}
+                </Text>
+                {isActive && (
+                  <Ionicons
+                    name="close-circle"
+                    size={14}
+                    color="#FFFFFF"
+                    style={styles.filterChipClose}
+                  />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
 
         {filteredProducts.length === 0 ? (
           <View style={styles.emptyContainer}>
@@ -462,7 +548,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 
-  // Header
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -512,7 +597,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 
-  // Search
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -529,7 +613,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  // Banner
   banner: {
     borderRadius: 20,
     padding: 16,
@@ -586,7 +669,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 
-  // Sections
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -607,7 +689,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // Categories
   categoriesList: {
     paddingBottom: 16,
   },
@@ -630,7 +711,6 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
 
-  // Empty State
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
@@ -641,7 +721,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  // Products Grid
   productsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -713,5 +792,26 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     marginLeft: 4,
+  },
+
+  filterList: {
+    flexDirection: "row",
+    gap: 8,
+    paddingBottom: 12,
+  },
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  filterChipText: {
+    fontSize: 12,
+    marginLeft: 6,
+  },
+  filterChipClose: {
+    marginLeft: 6,
   },
 });
