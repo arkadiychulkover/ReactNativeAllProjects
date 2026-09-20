@@ -394,7 +394,7 @@ export default function AdaptivScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F8FAF9",
+    backgroundColor: Platform.OS === "android" ? "#F8FAF9" : "#ff0000",
   },
   mainScrollContent: {
     paddingHorizontal: 16,
