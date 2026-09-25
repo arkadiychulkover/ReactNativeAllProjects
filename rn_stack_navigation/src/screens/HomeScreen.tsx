@@ -24,7 +24,6 @@ export default function HomeScreen({ navigation }: Props) {
   const bag = useShopStore((state) => state.bag);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'home' | 'search' | 'wishlist' | 'bag' | 'profile'>('home');
 
   const totalBagCount = useMemo(() => {
     return Object.values(bag).reduce((sum, qty) => sum + qty, 0);
@@ -138,72 +137,6 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         }
       />
-
-      <View style={styles.bottomNav}>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => setActiveTab('home')}
-        >
-          <Ionicons
-            name={activeTab === 'home' ? 'home' : 'home-outline'}
-            size={24}
-            color={activeTab === 'home' ? THEME_GREEN : '#8A929A'}
-          />
-          {activeTab === 'home' && <View style={styles.activeTabIndicator} />}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => {
-            setActiveTab('search');
-          }}
-        >
-          <Ionicons
-            name={activeTab === 'search' ? 'search' : 'search-outline'}
-            size={24}
-            color={activeTab === 'search' ? THEME_GREEN : '#8A929A'}
-          />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => setActiveTab('wishlist')}
-        >
-          <Ionicons
-            name={activeTab === 'wishlist' ? 'heart' : 'heart-outline'}
-            size={24}
-            color={activeTab === 'wishlist' ? '#E53E3E' : '#8A929A'}
-          />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => {
-            setActiveTab('bag');
-            navigation.navigate('YourBag');
-          }}
-        >
-          <Ionicons
-            name={activeTab === 'bag' ? 'bag' : 'bag-outline'}
-            size={24}
-            color={activeTab === 'bag' ? THEME_GREEN : '#8A929A'}
-          />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => {
-            setActiveTab('profile');
-            navigation.navigate('Profile');
-          }}
-        >
-          <Ionicons
-            name={activeTab === 'profile' ? 'person' : 'person-outline'}
-            size={24}
-            color={activeTab === 'profile' ? THEME_GREEN : '#8A929A'}
-          />
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }
@@ -222,7 +155,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   headerSideSpace: {
-    width: 32,
+    width: 36,
   },
   brandTitleContainer: {
     flexDirection: 'row',
@@ -349,30 +282,5 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 15,
     color: '#718096',
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    height: 60,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F2F5',
-    backgroundColor: '#FFFFFF',
-    paddingBottom: 4,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '100%',
-    position: 'relative',
-  },
-  activeTabIndicator: {
-    position: 'absolute',
-    bottom: 6,
-    width: 20,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: THEME_GREEN,
   },
 });
