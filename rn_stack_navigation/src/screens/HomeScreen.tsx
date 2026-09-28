@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { DrawerActions } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useShopStore, Product } from '../store/shopStore';
 
@@ -70,7 +71,6 @@ export default function HomeScreen({ navigation }: Props) {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <View style={styles.header}>
-        <View style={styles.headerSideSpace} />
         <View style={styles.brandTitleContainer}>
           <Text style={styles.brandTitleAura}>AURA </Text>
           <Text style={styles.brandTitleShop}>SHOP</Text>
@@ -114,7 +114,7 @@ export default function HomeScreen({ navigation }: Props) {
         <TouchableOpacity
           style={styles.filterButton}
           activeOpacity={0.7}
-          onPress={() => {}}
+          onPress={() => { }}
         >
           <Ionicons name="options-outline" size={20} color="#4A5568" />
         </TouchableOpacity>
@@ -154,8 +154,11 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 12,
   },
-  headerSideSpace: {
+  burgerButton: {
     width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   brandTitleContainer: {
     flexDirection: 'row',

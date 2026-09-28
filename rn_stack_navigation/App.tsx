@@ -1,13 +1,13 @@
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import AppNavigator from './src/navigation/AppNavigator';
+import { DrawerNavigator } from './src/navigation/DrawerNavigator';
 
 export default function App() {
   return (
     <SafeAreaProvider>
       <NavigationContainer>
-        <AppNavigator />
+        <DrawerNavigator />
         <StatusBar style="auto" />
       </NavigationContainer>
     </SafeAreaProvider>

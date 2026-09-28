@@ -8,6 +8,7 @@ import YourBagScreen from '../screens/YourBagScreen';
 
 export type RootStackParamList = {
   ShopTabs: undefined;
+  DrawerMenu: undefined;
   Home: undefined;
   Profile: undefined;
   Details: { productId: string };
