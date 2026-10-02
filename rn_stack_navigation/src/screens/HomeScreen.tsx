@@ -11,19 +11,24 @@ import {
   StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { DrawerActions } from '@react-navigation/native';
-import { RootStackParamList } from '../navigation/AppNavigator';
-import { useShopStore, Product } from '../store/shopStore';
+import { useShopStore, Product, Category } from '../store/shopStore';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
+type Props = {
+  navigation: any;
+  route?: {
+    params?: {
+      category?: Category;
+    };
+  };
+};
 
 const THEME_GREEN = '#477361';
 
-export default function HomeScreen({ navigation }: Props) {
+export default function HomeScreen({ navigation, route }: Props) {
   const products = useShopStore((state) => state.products);
   const bag = useShopStore((state) => state.bag);
 
+  const selectedCategory = route?.params?.category;
   const [searchQuery, setSearchQuery] = useState('');
 
   const totalBagCount = useMemo(() => {
@@ -31,14 +36,21 @@ export default function HomeScreen({ navigation }: Props) {
   }, [bag]);
 
   const filteredProducts = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return products;
+    let result = products;
+
+    if (selectedCategory) {
+      result = result.filter((product) => product.category === selectedCategory);
     }
-    const query = searchQuery.trim().toLowerCase();
-    return products.filter((product) =>
-      product.name.toLowerCase().includes(query)
-    );
-  }, [products, searchQuery]);
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
+      result = result.filter((product) =>
+        product.name.toLowerCase().includes(query)
+      );
+    }
+
+    return result;
+  }, [products, selectedCategory, searchQuery]);
 
   const renderProductItem = ({ item }: { item: Product }) => {
     return (
@@ -73,7 +85,9 @@ export default function HomeScreen({ navigation }: Props) {
       <View style={styles.header}>
         <View style={styles.brandTitleContainer}>
           <Text style={styles.brandTitleAura}>AURA </Text>
-          <Text style={styles.brandTitleShop}>SHOP</Text>
+          <Text style={styles.brandTitleShop}>
+            {selectedCategory ? selectedCategory.toUpperCase() : 'SHOP'}
+          </Text>
         </View>
 
         <TouchableOpacity
@@ -97,7 +111,7 @@ export default function HomeScreen({ navigation }: Props) {
           <Ionicons name="search" size={20} color="#8A929A" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search"
+            placeholder={selectedCategory ? `Search in ${selectedCategory}...` : "Search"}
             placeholderTextColor="#8A929A"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -120,6 +134,18 @@ export default function HomeScreen({ navigation }: Props) {
         </TouchableOpacity>
       </View>
 
+      {selectedCategory && (
+        <View style={styles.categoryFilterBadgeContainer}>
+          <View style={styles.categoryFilterBadge}>
+            <Ionicons name="pricetag" size={12} color={THEME_GREEN} />
+            <Text style={styles.categoryFilterText}>{selectedCategory}</Text>
+          </View>
+          <Text style={styles.categoryCountText}>
+            {filteredProducts.length} {filteredProducts.length === 1 ? 'item' : 'items'}
+          </Text>
+        </View>
+      )}
+
       <FlatList
         data={filteredProducts}
         keyExtractor={(item) => item.id}
@@ -132,7 +158,11 @@ export default function HomeScreen({ navigation }: Props) {
           <View style={styles.emptyResults}>
             <Ionicons name="search-outline" size={48} color="#CBD5E1" />
             <Text style={styles.emptyResultsText}>
-              {`No items matching "${searchQuery}"`}
+              {searchQuery.trim()
+                ? `No items matching "${searchQuery}"`
+                : selectedCategory
+                ? `No items found in category "${selectedCategory}"`
+                : 'No items available'}
             </Text>
           </View>
         }
@@ -235,6 +265,32 @@ const styles = StyleSheet.create({
     backgroundColor: '#EFF2F1',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  categoryFilterBadgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 14,
+  },
+  categoryFilterBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F1EC',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 6,
+  },
+  categoryFilterText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: THEME_GREEN,
+  },
+  categoryCountText: {
+    fontSize: 13,
+    color: '#8A929A',
+    fontWeight: '500',
   },
   listContent: {
     paddingHorizontal: 16,

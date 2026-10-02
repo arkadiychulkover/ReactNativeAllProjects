@@ -8,11 +8,12 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/AppNavigator';
 import { useShopStore } from '../store/shopStore';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Profile'>;
+type Props = {
+  navigation?: any;
+  route?: any;
+};
 
 const THEME_GREEN = '#477361';
 
