@@ -1,3 +1,4 @@
+/*
 import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
@@ -760,3 +761,512 @@ const styles = StyleSheet.create({
   },
   saveChangesButtonText: { color: "#fff", fontSize: 15, fontWeight: "700" },
 });
+*/
+
+import "react-native-gesture-handler";
+import React, { useState, useEffect, createContext, useContext } from "react";
+import { View, Text, TextInput, FlatList, TouchableOpacity, Modal, Alert, ScrollView } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { NavigationContainer } from "@react-navigation/native";
+import { createDrawerNavigator } from "@react-navigation/drawer";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import Icon from "@expo/vector-icons/FontAwesome";
+
+export type UserRole = "admin" | "viewer";
+
+export interface User {
+  id: string;
+  username: string;
+  password: string;
+  role: UserRole;
+}
+
+export interface Book {
+  id: string;
+  title: string;
+  author: string;
+}
+
+export interface AuthSession {
+  id: string;
+  username: string;
+  role: UserRole;
+}
+
+interface AppContextType {
+  currentUser: AuthSession | null;
+  books: Book[];
+  users: User[];
+  isAdmin: boolean;
+  login: (usernameInput: string, passwordInput: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  addBook: (title: string, author: string) => Promise<boolean>;
+  updateBook: (id: string, title: string, author: string) => Promise<boolean>;
+  deleteBook: (id: string) => Promise<void>;
+  registerUser: (usernameInput: string, passwordInput: string) => Promise<{ success: boolean; message: string }>;
+}
+
+const STORAGE_KEY_BOOKS = "@books_data";
+const STORAGE_KEY_USERS = "@users_data";
+const STORAGE_KEY_SESSION = "@current_session";
+
+const DEFAULT_ADMIN: User = { id: "admin-1", username: "admin", password: "123", role: "admin" };
+const INITIAL_BOOKS: Book[] = [{ id: "1", title: "Кобзар", author: "Тарас Шевченко" }, { id: "2", title: "Тіні забутих предків", author: "Михайло Коцюбинський" }, { id: "3", title: "Захар Беркут", author: "Іван Франко" }];
+
+const AppContext = createContext<AppContextType | null>(null);
+
+export const useAppContext = (): AppContextType => {
+  const context = useContext(AppContext);
+  if (!context) throw new Error("useAppContext must be used within AppProvider");
+  return context;
+};
+
+export const AppProvider = ({ children }: { children: React.ReactNode }): React.JSX.Element => {
+  const [currentUser, setCurrentUser] = useState<AuthSession | null>(null);
+  const [books, setBooks] = useState<Book[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const isAdmin = currentUser?.role === "admin";
+
+  useEffect(() => {
+    let isMounted = true;
+    const initData = async (): Promise<void> => {
+      try {
+        const storedBooks = await AsyncStorage.getItem(STORAGE_KEY_BOOKS);
+        if (!isMounted) return;
+        if (storedBooks) {
+          setBooks(JSON.parse(storedBooks));
+        } else {
+          await AsyncStorage.setItem(STORAGE_KEY_BOOKS, JSON.stringify(INITIAL_BOOKS));
+          if (isMounted) setBooks(INITIAL_BOOKS);
+        }
+
+        const storedUsers = await AsyncStorage.getItem(STORAGE_KEY_USERS);
+        if (!isMounted) return;
+        if (storedUsers) {
+          setUsers(JSON.parse(storedUsers));
+        } else {
+          await AsyncStorage.setItem(STORAGE_KEY_USERS, JSON.stringify([DEFAULT_ADMIN]));
+          if (isMounted) setUsers([DEFAULT_ADMIN]);
+        }
+
+        const storedSession = await AsyncStorage.getItem(STORAGE_KEY_SESSION);
+        if (isMounted && storedSession) {
+          setCurrentUser(JSON.parse(storedSession));
+        }
+      } catch {
+        if (isMounted) Alert.alert("Помилка", "Не вдалося завантажити дані з AsyncStorage", [{ text: "OK" }]);
+      }
+    };
+    initData();
+    return () => { isMounted = false; };
+  }, []);
+
+  const login = async (usernameInput: string, passwordInput: string): Promise<boolean> => {
+    const trimmedUser = usernameInput.trim();
+    const trimmedPass = passwordInput.trim();
+    if (!trimmedUser || !trimmedPass) {
+      Alert.alert("Помилка", "Введіть логін та пароль", [{ text: "OK" }]);
+      return false;
+    }
+
+    const matchedUser = users.find((u) => u.username.toLowerCase() === trimmedUser.toLowerCase() && u.password === trimmedPass) || (trimmedUser === DEFAULT_ADMIN.username && trimmedPass === DEFAULT_ADMIN.password ? DEFAULT_ADMIN : null);
+
+    if (matchedUser) {
+      const session: AuthSession = { id: matchedUser.id, username: matchedUser.username, role: matchedUser.role };
+      await AsyncStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(session));
+      setCurrentUser(session);
+      return true;
+    } else {
+      Alert.alert("Помилка авторизації", "Невірне ім'я користувача або пароль", [{ text: "OK" }]);
+      return false;
+    }
+  };
+
+  const logout = async (): Promise<void> => {
+    await AsyncStorage.removeItem(STORAGE_KEY_SESSION);
+    setCurrentUser(null);
+  };
+
+  const addBook = async (title: string, author: string): Promise<boolean> => {
+    const trimmedTitle = title.trim();
+    const trimmedAuthor = author.trim();
+    if (!trimmedTitle || !trimmedAuthor) {
+      Alert.alert("Помилка", "Заповніть назву книги та автора", [{ text: "OK" }]);
+      return false;
+    }
+    const newBookItem: Book = { id: Date.now().toString(), title: trimmedTitle, author: trimmedAuthor };
+    const updatedBooks = [...books, newBookItem];
+    setBooks(updatedBooks);
+    await AsyncStorage.setItem(STORAGE_KEY_BOOKS, JSON.stringify(updatedBooks));
+    Alert.alert("Успіх", `Книгу "${trimmedTitle}" успішно додано!`, [{ text: "OK" }]);
+    return true;
+  };
+
+  const updateBook = async (id: string, title: string, author: string): Promise<boolean> => {
+    const trimmedTitle = title.trim();
+    const trimmedAuthor = author.trim();
+    if (!trimmedTitle || !trimmedAuthor) {
+      Alert.alert("Помилка", "Заповніть назву книги та автора", [{ text: "OK" }]);
+      return false;
+    }
+    const updatedBooks = books.map((b) => (b.id === id ? { id, title: trimmedTitle, author: trimmedAuthor } : b));
+    setBooks(updatedBooks);
+    await AsyncStorage.setItem(STORAGE_KEY_BOOKS, JSON.stringify(updatedBooks));
+    Alert.alert("Успіх", "Дані книги успішно оновлено!", [{ text: "OK" }]);
+    return true;
+  };
+
+  const deleteBook = async (id: string): Promise<void> => {
+    const updatedBooks = books.filter((b) => b.id !== id);
+    setBooks(updatedBooks);
+    await AsyncStorage.setItem(STORAGE_KEY_BOOKS, JSON.stringify(updatedBooks));
+  };
+
+  const registerUser = async (usernameInput: string, passwordInput: string): Promise<{ success: boolean; message: string }> => {
+    const trimmedUser = usernameInput.trim();
+    const trimmedPass = passwordInput.trim();
+    if (!trimmedUser || !trimmedPass) {
+      return { success: false, message: "Введіть ім'я користувача та пароль" };
+    }
+    if (trimmedUser.toLowerCase() === DEFAULT_ADMIN.username.toLowerCase() || users.some((u) => u.username.toLowerCase() === trimmedUser.toLowerCase())) {
+      return { success: false, message: "Користувач із таким логіном уже існує!" };
+    }
+    const newUserItem: User = { id: Date.now().toString(), username: trimmedUser, password: trimmedPass, role: "viewer" };
+    const updatedUsers = [...users, newUserItem];
+    setUsers(updatedUsers);
+    await AsyncStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(updatedUsers));
+    return { success: true, message: `Користувача "${trimmedUser}" успішно зареєстровано як переглядача` };
+  };
+
+  return (
+    <AppContext.Provider value={{ currentUser, books, users, isAdmin, login, logout, addBook, updateBook, deleteBook, registerUser }}>
+      {children}
+    </AppContext.Provider>
+  );
+};
+
+interface BookItemProps {
+  book: Book;
+  isAdmin: boolean;
+  onEdit: (book: Book) => void;
+  onDelete: (book: Book) => void;
+}
+
+export const BookItem = ({ book, isAdmin, onEdit, onDelete }: BookItemProps): React.JSX.Element => {
+  return (
+    <View style={{ backgroundColor: "#ffffff", borderRadius: 10, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#e2e8f0" }}>
+      <View style={{ marginBottom: isAdmin ? 10 : 0 }}>
+        <Text style={{ fontSize: 16, fontWeight: "700", color: "#1e293b" }}>{book.title}</Text>
+        <Text style={{ fontSize: 14, color: "#64748b", marginTop: 4 }}>Автор: {book.author}</Text>
+      </View>
+      {isAdmin && (
+        <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
+          <TouchableOpacity onPress={() => onEdit(book)} style={{ backgroundColor: "#0284c7", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Icon name="pencil" size={13} color="#ffffff" />
+            <Text style={{ color: "#ffffff", fontWeight: "600", fontSize: 13 }}>Редагувати</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => onDelete(book)} style={{ backgroundColor: "#ef4444", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Icon name="trash" size={13} color="#ffffff" />
+            <Text style={{ color: "#ffffff", fontWeight: "600", fontSize: 13 }}>Видалити</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+};
+
+interface EditBookModalProps {
+  visible: boolean;
+  book: Book;
+  onSave: (id: string, title: string, author: string) => Promise<void>;
+  onCancel: () => void;
+}
+
+export const EditBookModal = ({ visible, book, onSave, onCancel }: EditBookModalProps): React.JSX.Element => {
+  const [title, setTitle] = useState<string>(book.title);
+  const [author, setAuthor] = useState<string>(book.author);
+
+  const handleSavePress = async (): Promise<void> => {
+    await onSave(book.id, title, author);
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)", padding: 20 }}>
+        <View style={{ backgroundColor: "#ffffff", borderRadius: 12, padding: 20, width: "100%", maxWidth: 400 }}>
+          <Text style={{ fontSize: 18, fontWeight: "700", marginBottom: 14, color: "#0f172a" }}>Оновлення книги</Text>
+          <Text style={{ fontSize: 13, color: "#475569", marginBottom: 4 }}>Назва книги:</Text>
+          <TextInput placeholder="Назва книги" value={title} onChangeText={setTitle} style={{ borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, padding: 10, marginBottom: 12, backgroundColor: "#ffffff" }} />
+          <Text style={{ fontSize: 13, color: "#475569", marginBottom: 4 }}>Автор:</Text>
+          <TextInput placeholder="Автор книги" value={author} onChangeText={setAuthor} style={{ borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, padding: 10, marginBottom: 16, backgroundColor: "#ffffff" }} />
+          <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 10 }}>
+            <TouchableOpacity onPress={onCancel} style={{ backgroundColor: "#94a3b8", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 }}>
+              <Text style={{ color: "#ffffff", fontWeight: "600" }}>Скасувати</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleSavePress} style={{ backgroundColor: "#0284c7", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 }}>
+              <Text style={{ color: "#ffffff", fontWeight: "600" }}>Зберегти</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+export const LoginScreen = (): React.JSX.Element => {
+  const { login } = useAppContext();
+  const [username, setUsername] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+
+  const handleLoginPress = async (): Promise<void> => {
+    await login(username, password);
+  };
+
+  return (
+    <SafeAreaView edges={["top", "bottom", "left", "right"]} style={{ flex: 1, justifyContent: "center", padding: 24, backgroundColor: "#f8fafc" }}>
+      <View style={{ backgroundColor: "#ffffff", padding: 24, borderRadius: 14, borderWidth: 1, borderColor: "#e2e8f0" }}>
+        <Text style={{ fontSize: 24, fontWeight: "700", marginBottom: 8, color: "#0f172a", textAlign: "center" }}>Вхід у систему</Text>
+        <Text style={{ fontSize: 14, color: "#64748b", marginBottom: 20, textAlign: "center" }}>Керування бібліотекою книг</Text>
+        <Text style={{ fontSize: 13, color: "#475569", marginBottom: 4 }}>{"Ім'я користувача:"}</Text>
+        <TextInput placeholder="Username (наприклад: admin)" value={username} onChangeText={setUsername} autoCapitalize="none" style={{ borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, padding: 10, marginBottom: 12, backgroundColor: "#ffffff" }} />
+        <Text style={{ fontSize: 13, color: "#475569", marginBottom: 4 }}>Пароль:</Text>
+        <TextInput placeholder="Password (наприклад: 123)" secureTextEntry value={password} onChangeText={setPassword} autoCapitalize="none" style={{ borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, padding: 10, marginBottom: 20, backgroundColor: "#ffffff" }} />
+        <TouchableOpacity onPress={handleLoginPress} style={{ backgroundColor: "#0284c7", padding: 12, borderRadius: 8, alignItems: "center" }}>
+          <Text style={{ color: "#ffffff", fontWeight: "700", fontSize: 16 }}>Увійти</Text>
+        </TouchableOpacity>
+        <View style={{ marginTop: 20, padding: 12, backgroundColor: "#f1f5f9", borderRadius: 8 }}>
+          <Text style={{ fontSize: 12, color: "#475569", fontWeight: "600" }}>Підказка для входу:</Text>
+          <Text style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>Головний адмін: admin / 123 (повний доступ)</Text>
+          <Text style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>Створені користувачі: тільки перегляд книг</Text>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+};
+
+export const BooksScreen = (): React.JSX.Element => {
+  const { books, isAdmin, addBook, updateBook, deleteBook } = useAppContext();
+  const [newTitle, setNewTitle] = useState<string>("");
+  const [newAuthor, setNewAuthor] = useState<string>("");
+  const [editingBook, setEditingBook] = useState<Book | null>(null);
+
+  const handleAddPress = async (): Promise<void> => {
+    const success = await addBook(newTitle, newAuthor);
+    if (success) {
+      setNewTitle("");
+      setNewAuthor("");
+    }
+  };
+
+  const handleSaveEdit = async (id: string, title: string, author: string): Promise<void> => {
+    const success = await updateBook(id, title, author);
+    if (success) {
+      setEditingBook(null);
+    }
+  };
+
+  const handleDeletePress = (book: Book): void => {
+    Alert.alert("Видалення книги", `Ви дійсно бажаєте видалити "${book.title}"?`, [{ text: "Скасувати", style: "cancel" }, { text: "Видалити", style: "destructive", onPress: () => deleteBook(book.id) }]);
+  };
+
+  return (
+    <View style={{ flex: 1, padding: 16, backgroundColor: "#f8fafc" }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <Text style={{ fontSize: 20, fontWeight: "700", color: "#0f172a" }}>Список книг ({books.length})</Text>
+        <View style={{ backgroundColor: isAdmin ? "#dbeafe" : "#f1f5f9", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+          <Text style={{ fontSize: 12, fontWeight: "600", color: isAdmin ? "#1d4ed8" : "#475569" }}>{isAdmin ? "Адміністратор (CRUD)" : "Переглядач (Тільки читання)"}</Text>
+        </View>
+      </View>
+
+      <FlatList
+        data={books}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => <BookItem book={item} isAdmin={isAdmin} onEdit={setEditingBook} onDelete={handleDeletePress} />}
+        ListEmptyComponent={<Text style={{ textAlign: "center", color: "#94a3b8", marginTop: 30 }}>Список книг порожній</Text>}
+        contentContainerStyle={{ paddingBottom: 16 }}
+      />
+
+      {isAdmin ? (
+        <View style={{ backgroundColor: "#ffffff", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", marginTop: 10 }}>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: "#0f172a", marginBottom: 10 }}>Додати нову книгу</Text>
+          <TextInput placeholder="Назва книги" value={newTitle} onChangeText={setNewTitle} style={{ borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, padding: 10, marginBottom: 8, backgroundColor: "#ffffff" }} />
+          <TextInput placeholder="Автор" value={newAuthor} onChangeText={setNewAuthor} style={{ borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, padding: 10, marginBottom: 12, backgroundColor: "#ffffff" }} />
+          <TouchableOpacity onPress={handleAddPress} style={{ backgroundColor: "#16a34a", padding: 12, borderRadius: 8, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 }}>
+            <Icon name="plus" size={14} color="#ffffff" />
+            <Text style={{ color: "#ffffff", fontWeight: "700", fontSize: 15 }}>Додати книгу</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={{ backgroundColor: "#e2e8f0", padding: 12, borderRadius: 8, alignItems: "center" }}>
+          <Text style={{ color: "#475569", fontSize: 13, fontWeight: "500" }}>Ви увійшли як переглядач: додавання та редагування заблоковано</Text>
+        </View>
+      )}
+
+      {editingBook && (
+        <EditBookModal visible={true} book={editingBook} onSave={handleSaveEdit} onCancel={() => setEditingBook(null)} />
+      )}
+    </View>
+  );
+};
+
+export const UsersScreen = (): React.JSX.Element => {
+  const { users, registerUser, isAdmin } = useAppContext();
+  const [newUsername, setNewUsername] = useState<string>("");
+  const [newPassword, setNewPassword] = useState<string>("");
+
+  const handleRegisterPress = async (): Promise<void> => {
+    const result = await registerUser(newUsername, newPassword);
+    if (result.success) {
+      Alert.alert("Успіх", result.message, [{ text: "OK" }]);
+      setNewUsername("");
+      setNewPassword("");
+    } else {
+      Alert.alert("Помилка", result.message, [{ text: "OK" }]);
+    }
+  };
+
+  if (!isAdmin) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 20 }}>
+        <Icon name="lock" size={48} color="#94a3b8" />
+        <Text style={{ fontSize: 18, fontWeight: "700", color: "#475569", marginTop: 12 }}>Доступ заборонено</Text>
+        <Text style={{ color: "#94a3b8", textAlign: "center", marginTop: 6 }}>Реєструвати нових користувачів може тільки головний адміністратор.</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={{ flex: 1, padding: 16, backgroundColor: "#f8fafc" }}>
+      <View style={{ backgroundColor: "#ffffff", padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", marginBottom: 16 }}>
+        <Text style={{ fontSize: 18, fontWeight: "700", color: "#0f172a", marginBottom: 4 }}>Реєстрація нового користувача</Text>
+        <Text style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>Нові користувачі зберігаються в AsyncStorage і мають права лише на перегляд.</Text>
+        <TextInput placeholder="Логін нового користувача" value={newUsername} onChangeText={setNewUsername} autoCapitalize="none" style={{ borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, padding: 10, marginBottom: 8, backgroundColor: "#ffffff" }} />
+        <TextInput placeholder="Пароль" secureTextEntry value={newPassword} onChangeText={setNewPassword} autoCapitalize="none" style={{ borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, padding: 10, marginBottom: 14, backgroundColor: "#ffffff" }} />
+        <TouchableOpacity onPress={handleRegisterPress} style={{ backgroundColor: "#0284c7", padding: 12, borderRadius: 8, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 }}>
+          <Icon name="user-plus" size={14} color="#ffffff" />
+          <Text style={{ color: "#ffffff", fontWeight: "700", fontSize: 15 }}>Зареєструвати переглядача</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={{ backgroundColor: "#ffffff", padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0" }}>
+        <Text style={{ fontSize: 16, fontWeight: "700", color: "#0f172a", marginBottom: 10 }}>Зареєстровані користувачі ({users.length})</Text>
+        {users.map((u) => (
+          <View key={u.id} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" }}>
+            <View>
+              <Text style={{ fontSize: 15, fontWeight: "600", color: "#1e293b" }}>{u.username}</Text>
+              <Text style={{ fontSize: 12, color: "#64748b" }}>Пароль: {u.password}</Text>
+            </View>
+            <View style={{ backgroundColor: u.role === "admin" ? "#dcfce7" : "#f1f5f9", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+              <Text style={{ fontSize: 12, fontWeight: "600", color: u.role === "admin" ? "#15803d" : "#475569" }}>{u.role === "admin" ? "Головний адмін" : "Переглядач"}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+};
+
+export const SettingsScreen = (): React.JSX.Element => {
+  const { currentUser, logout } = useAppContext();
+
+  const handleLogoutPress = async (): Promise<void> => {
+    await logout();
+  };
+
+  return (
+    <View style={{ flex: 1, padding: 16, backgroundColor: "#f8fafc", justifyContent: "space-between" }}>
+      <View style={{ backgroundColor: "#ffffff", padding: 18, borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0" }}>
+        <Text style={{ fontSize: 18, fontWeight: "700", color: "#0f172a", marginBottom: 12 }}>Профіль користувача</Text>
+        <View style={{ marginBottom: 10 }}>
+          <Text style={{ fontSize: 13, color: "#64748b" }}>Поточний логін:</Text>
+          <Text style={{ fontSize: 16, fontWeight: "600", color: "#1e293b" }}>{currentUser?.username || "Не авторизовано"}</Text>
+        </View>
+        <View style={{ marginBottom: 10 }}>
+          <Text style={{ fontSize: 13, color: "#64748b" }}>Права доступу:</Text>
+          <Text style={{ fontSize: 16, fontWeight: "600", color: currentUser?.role === "admin" ? "#16a34a" : "#0284c7" }}>
+            {currentUser?.role === "admin" ? "Адміністратор (Повний CRUD доступ)" : "Переглядач (Тільки перегляд списку книг)"}
+          </Text>
+        </View>
+        <View style={{ backgroundColor: "#f1f5f9", padding: 12, borderRadius: 8, marginTop: 10 }}>
+          <Text style={{ fontSize: 12, color: "#475569" }}>
+            {currentUser?.role === "admin" ? "Ви можете додавати, редагувати, видаляти книги та реєструвати інших користувачів." : "Вам дозволено лише переглядати існуючий список книг у системі."}
+          </Text>
+        </View>
+      </View>
+
+      <TouchableOpacity onPress={handleLogoutPress} style={{ backgroundColor: "#ef4444", padding: 14, borderRadius: 10, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 }}>
+        <Icon name="sign-out" size={16} color="#ffffff" />
+        <Text style={{ color: "#ffffff", fontWeight: "700", fontSize: 16 }}>Вийти з системи</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+export const AboutScreen = (): React.JSX.Element => {
+  return (
+    <SafeAreaView edges={["bottom", "left", "right"]} style={{ flex: 1, padding: 24, backgroundColor: "#f8fafc", justifyContent: "center" }}>
+      <View style={{ backgroundColor: "#ffffff", padding: 24, borderRadius: 14, borderWidth: 1, borderColor: "#e2e8f0" }}>
+        <Icon name="book" size={40} color="#0284c7" style={{ marginBottom: 12 }} />
+        <Text style={{ fontSize: 22, fontWeight: "700", color: "#0f172a", marginBottom: 8 }}>Про додаток «Book Manager»</Text>
+        <Text style={{ fontSize: 14, color: "#475569", lineHeight: 22, marginBottom: 16 }}>
+          Мобільний додаток для керування списком книг на React Native з повною підтримкою AsyncStorage та ролевою моделлю доступу.
+        </Text>
+        <View style={{ borderTopWidth: 1, borderTopColor: "#e2e8f0", paddingTop: 12 }}>
+          <Text style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>• Збереження даних у локальному AsyncStorage</Text>
+          <Text style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>• Ролі: Головний Адміністратор та Переглядачі</Text>
+          <Text style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>• Повне оновлення та редагування книг</Text>
+          <Text style={{ fontSize: 13, color: "#64748b" }}>• SafeAreaView виправлено через react-native-safe-area-context</Text>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+};
+
+const Drawer = createDrawerNavigator();
+const Tab = createBottomTabNavigator();
+
+export const HomeTabNavigator = (): React.JSX.Element => {
+  const { isAdmin } = useAppContext();
+
+  return (
+    <Tab.Navigator screenOptions={{ tabBarActiveTintColor: "#0284c7", tabBarInactiveTintColor: "#64748b" }}>
+      <Tab.Screen name="BooksTab" component={BooksScreen} options={{ title: "Книги", tabBarIcon: ({ color, size }) => <Icon name="book" size={size} color={color} /> }} />
+      {isAdmin && (
+        <Tab.Screen name="UsersTab" component={UsersScreen} options={{ title: "Користувачі", tabBarIcon: ({ color, size }) => <Icon name="users" size={size} color={color} /> }} />
+      )}
+      <Tab.Screen name="SettingsTab" component={SettingsScreen} options={{ title: "Налаштування", tabBarIcon: ({ color, size }) => <Icon name="cogs" size={size} color={color} /> }} />
+    </Tab.Navigator>
+  );
+};
+
+export const HomeScreen = (): React.JSX.Element => {
+  const { currentUser } = useAppContext();
+  if (!currentUser) {
+    return <LoginScreen />;
+  }
+  return <HomeTabNavigator />;
+};
+
+export const MainDrawerNavigator = (): React.JSX.Element => {
+  const { currentUser } = useAppContext();
+
+  return (
+    <Drawer.Navigator initialRouteName="Home">
+      <Drawer.Screen name="Home" component={HomeScreen} options={{ title: currentUser ? "Головна" : "Авторизація", drawerIcon: ({ color, size }) => <Icon name="home" size={size} color={color} /> }} />
+      <Drawer.Screen name="About" component={AboutScreen} options={{ title: "Про додаток", drawerIcon: ({ color, size }) => <Icon name="info-circle" size={size} color={color} /> }} />
+    </Drawer.Navigator>
+  );
+};
+
+export default function App(): React.JSX.Element {
+  return (
+    <SafeAreaProvider>
+      <AppProvider>
+        <NavigationContainer>
+          <MainDrawerNavigator />
+        </NavigationContainer>
+      </AppProvider>
+    </SafeAreaProvider>
+  );
+}
